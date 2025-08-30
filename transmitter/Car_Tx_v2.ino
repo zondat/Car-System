@@ -88,6 +88,54 @@ void handle_gear_down() {
 // Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // DisplayModule_OLED displayModule(oled);
 
+/***********************************/
+/********** Gyro Module ************/
+/************** Gyro Setting ****************/
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+
+Adafruit_MPU6050 mpu;
+
+// Compute the offset of rotation speed
+#define DEFAULT_YAW 90
+#define SAMPLE_TIME 55
+#define RATE_THRESHOLD 3
+#define NUM_ATTEMPT 5
+
+float offsetRateYaw = 0.0, rateYaw = 0.0, yaw = DEFAULT_YAW;
+bool has_gyro = false;
+sensors_event_t a, g, temp;
+
+void calibrate_gyro() {
+  delay(120);
+  for (int i=0; i<NUM_ATTEMPT; i++) {    
+    mpu.getEvent(&a, &g, &temp);
+    offsetRateYaw += g.gyro.z;
+    delay(25);
+  }
+  
+  offsetRateYaw = offsetRateYaw/NUM_ATTEMPT;
+  yaw = DEFAULT_YAW;
+}
+
+double rad2Deg(double rad) {
+  return 180.0/3.14*rad;
+}
+
+void init_gyro() {
+  has_gyro = mpu.begin();
+  if (!has_gyro) Serial.println("No MPU6050");
+  else {
+    Serial.println("Init Gyro succeeded...");
+    mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
+    mpu.setGyroRange(MPU6050_RANGE_250_DEG);
+    mpu.setFilterBandwidth(MPU6050_BAND_10_HZ);
+    calibrate_gyro();
+  }
+}
+
+
 /********************************/
 void setup() {
   Serial.begin(115200);
@@ -95,6 +143,7 @@ void setup() {
   init_joystick();
   init_gearstick();
   init_radio();
+  init_gyro();
 }
 
 void loop() {
@@ -103,6 +152,15 @@ void loop() {
   _radioData.y = analogRead(PIN_JOYSTICK_RY);
   _radioData.downGear = gearDown;
   _radioData.upGear = gearUp;
+  
+  if(has_gyro) {
+    mpu.getEvent(&a, &g, &temp);
+    rateYaw = g.gyro.z - offsetRateYaw;
+    float deltaRad = rateYaw*SAMPLE_TIME/1000.0;
+    yaw += rad2Deg(deltaRad);
+    _radioData.yaw = yaw;
+    // Serial.println("Yaw: " + String(_radioData.yaw));
+  }
 
   if (_radio.send(DESTINATION_RADIO_ID, &_radioData, sizeof(_radioData))) {
     // displayModule.clear();
@@ -117,5 +175,5 @@ void loop() {
 
   gearDown = false;
   gearUp = false;
-  delay(1500);
+  delay(50);
 }
