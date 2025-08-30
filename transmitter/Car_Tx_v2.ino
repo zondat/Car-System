@@ -158,6 +158,8 @@ void loop() {
     rateYaw = g.gyro.z - offsetRateYaw;
     float deltaRad = rateYaw*SAMPLE_TIME/1000.0;
     yaw += rad2Deg(deltaRad);
+    if (yaw>180) yaw = 180;
+    if (yaw < 0) yaw = 0;
     _radioData.yaw = yaw;
     // Serial.println("Yaw: " + String(_radioData.yaw));
   }
